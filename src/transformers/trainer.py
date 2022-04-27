@@ -1503,7 +1503,7 @@ class Trainer:
                     self.optimizer = optimizer
                     self.lr_scheduler = lr_scheduler
                     self.deepspeed.load_checkpoint(
-                        self.state.best_model_checkpoint, load_optimizer_states=True, load_lr_scheduler_states=True
+                        self.state.best_model_checkpoint, load_optimizer_states=False, load_lr_scheduler_states=False
                     )
                 else:
                     # We load the model state dict on the CPU to avoid an OOM error.
