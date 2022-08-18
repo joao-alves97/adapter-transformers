@@ -1346,6 +1346,22 @@ class MBartForConditionalGeneration(ModelWithHeadsAdaptersMixin, MBartPreTrained
     def get_decoder(self):
         return self.model.get_decoder()
 
+    def activate_embeddings(self):
+        for param in self.model.shared.parameters():
+            param.requires_grad = True
+
+        if self.config.use_factors_p:
+            for param in self.model.encoder.embed_factors_p.parameters():
+                param.requires_grad = True
+
+        if self.config.use_factors_e:
+            for param in self.model.encoder.embed_factors_e.parameters():
+                param.requires_grad = True
+
+        if self.config.source_factors_combine == "concat":
+            for param in self.model.encoder.reproject_embed_layer.parameters():
+                param.requires_grad = True
+
     def resize_token_embeddings(self, new_num_tokens: int) -> nn.Embedding:
         new_embeddings = super().resize_token_embeddings(new_num_tokens)
         self._resize_final_logits_bias(new_num_tokens)
