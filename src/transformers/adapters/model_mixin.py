@@ -337,6 +337,19 @@ class ModelAdaptersMixin(PushAdapterToHubMixin, ABC):
         if train_embeddings:
             for param in  self.get_input_embeddings().parameters():
                 param.requires_grad = True
+
+            if self.config.use_factors_p:
+                for param in self.model.encoder.embed_factors_p.parameters():
+                    param.requires_grad = True
+
+            if self.config.use_factors_e:
+                for param in self.model.encoder.embed_factors_e.parameters():
+                    param.requires_grad = True
+
+            if self.config.source_factors_combine == "concat":
+                for param in self.model.encoder.reproject_embed_layer.parameters():
+                    param.requires_grad = True
+
             #self.get_input_embeddings().train()
 
     def train_fusion(self, adapter_setup: Union[list, AdapterCompositionBlock], unfreeze_adapters=False):
