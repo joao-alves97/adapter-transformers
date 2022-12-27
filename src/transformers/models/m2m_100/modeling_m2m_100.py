@@ -733,6 +733,19 @@ class M2M100Encoder(InvertibleAdaptersMixin, M2M100PreTrainedModel):
         else:
             self.embed_tokens = nn.Embedding(config.vocab_size, embed_dim, self.padding_idx)
 
+        if config.use_factors_p or config.use_factors_e:
+            if config.source_factors_combine == "concat":
+                factors_p_embed_dim = config.dim_factors_p if config.use_factors_p else 0
+                factors_e_embed_dim = config.dim_factors_e if config.use_factors_e else 0
+                concat_dim = embed_dim + factors_p_embed_dim + factors_e_embed_dim
+                self.reproject_embed_layer = nn.Linear(concat_dim, embed_dim)
+            else:
+                factors_embed_dim = embed_dim
+            if config.use_factors_p:
+                self.embed_factors_p = nn.Embedding(config.factors_vocab_size, factors_embed_dim, self.padding_idx)
+            if config.use_factors_e:
+                self.embed_factors_e = nn.Embedding(config.factors_vocab_size, factors_embed_dim, self.padding_idx)
+
         self.embed_positions = M2M100SinusoidalPositionalEmbedding(
             config.max_position_embeddings,
             embed_dim,
@@ -747,13 +760,15 @@ class M2M100Encoder(InvertibleAdaptersMixin, M2M100PreTrainedModel):
 
     def forward(
         self,
-        input_ids=None,
-        attention_mask=None,
-        head_mask=None,
-        inputs_embeds=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
+        input_ids: torch.LongTensor = None,
+        factors_p: torch.LongTensor = None,
+        factors_e: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
     ):
         r"""
         Args:
@@ -810,6 +825,16 @@ class M2M100Encoder(InvertibleAdaptersMixin, M2M100PreTrainedModel):
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids) * self.embed_scale
+
+            factors_embeds_p = self.embed_factors_p(factors_p) if self.config.use_factors_p else 0
+            factors_embeds_e = self.embed_factors_e(factors_e) if self.config.use_factors_e else 0
+
+            if self.config.source_factors_combine == "sum":
+                inputs_embeds += factors_embeds_p + factors_embeds_e
+            elif self.config.source_factors_combine == "concat":
+                inputs_embeds = torch.cat((inputs_embeds, factors_embeds_p, factors_embeds_e), dim=2)
+                inputs_embeds = self.reproject_embed_layer(inputs_embeds)
+
 
         embed_pos = self.embed_positions(input_ids, inputs_embeds)
 
@@ -1201,6 +1226,8 @@ class M2M100Model(M2M100ModelAdaptersMixin, M2M100PreTrainedModel):
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
+        factors_p: Optional[torch.LongTensor] = None,
+        factors_e: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -1226,6 +1253,8 @@ class M2M100Model(M2M100ModelAdaptersMixin, M2M100PreTrainedModel):
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
+                factors_p=factors_p,
+                factors_e=factors_e,
                 attention_mask=attention_mask,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
@@ -1319,6 +1348,8 @@ class M2M100ForConditionalGeneration(M2M100ModelWithHeadsAdaptersMixin, M2M100Pr
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
+        factors_p: Optional[torch.LongTensor] = None,
+        factors_e: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -1353,6 +1384,8 @@ class M2M100ForConditionalGeneration(M2M100ModelWithHeadsAdaptersMixin, M2M100Pr
 
         outputs = self.model(
             input_ids,
+            factors_p=factors_p,
+            factors_e=factors_e,
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
             encoder_outputs=encoder_outputs,
