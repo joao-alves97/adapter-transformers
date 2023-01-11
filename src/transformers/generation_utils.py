@@ -1186,7 +1186,7 @@ class GenerationMixin:
             # if model is encoder decoder encoder_outputs are created
             # and added to `model_kwargs`
             model_kwargs = self._prepare_encoder_decoder_kwargs_for_generation(
-                inputs_tensor, factors_p, factors_e, model_kwargs, model_input_name
+                inputs_tensor, model_kwargs, factors_p, factors_e, model_input_name
             )
 
         # 4. Prepare `input_ids` which will be used for auto-regressive generation
